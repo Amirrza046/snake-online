@@ -14,7 +14,7 @@ main{max-width:600px;margin:auto;padding:12px}
 .panel{background:#1c2b40;border-radius:15px;padding:15px;margin:12px 0}
 input,select,button{font:inherit;border:0;border-radius:9px;padding:12px;margin:5px}
 input,select{background:#0d1929;color:white;max-width:95%}
-button{background:#35d69a;color:#09251b;font-weight:bold}
+button{background:#35d69a;color:#09251b;font-weight:bold;cursor:pointer}
 .secondary{background:#48617e;color:white}
 .danger{background:#d94c60;color:white}
 .hidden{display:none!important}
@@ -24,6 +24,8 @@ button{background:#35d69a;color:#09251b;font-weight:bold}
 .player{background:#30435e;border-radius:9px;padding:10px;margin:5px;display:flex;justify-content:space-between}
 #status{color:#ffd66c;min-height:25px;font-size:13px}
 canvas{width:100%;max-width:480px;background:#08121e;border:3px solid #49627f;border-radius:10px;touch-action:none}
+#joystick{width:150px;height:150px;border-radius:50%;background:#30435e;border:3px solid #5b7899;margin:15px auto;position:relative;touch-action:none}
+#stick{width:58px;height:58px;border-radius:50%;background:#35d69a;border:3px solid white;position:absolute;left:43px;top:43px;pointer-events:none}
 #controls{display:grid;grid-template-columns:65px 65px 65px;justify-content:center;gap:6px}
 #controls button{font-size:22px}
 </style>
@@ -78,13 +80,16 @@ canvas{width:100%;max-width:480px;background:#08121e;border:3px solid #49627f;bo
 <h3 id="gameTitle">مسابقه شروع شد</h3>
 <p id="gameInfo"></p>
 <canvas id="board" width="480" height="480"></canvas>
+<h4>🕹️ جوی‌استیک حرکت</h4>
+<div id="joystick"><div id="stick"></div></div>
 <div id="controls">
 <span></span><button onclick="move('up')">⬆️</button><span></span>
 <button onclick="move('left')">⬅️</button>
 <button onclick="move('down')">⬇️</button>
 <button onclick="move('right')">➡️</button>
 </div>
-<button class="secondary" onclick="backToRoom()">بازگشت</button>
+<button onclick="restartGame()">🔄 شروع دوباره</button>
+<button class="secondary" onclick="backToRoom()">بازگشت به اتاق</button>
 </section>
 <div id="status"></div>
 </main>
@@ -170,7 +175,7 @@ function createRoom(){
  });
  let finished=false;
  let timeout=setTimeout(()=>{
-  if(!finished){finished=true;status("سرور پاسخ نداد. اینترنت یا اتصال PeerJS را بررسی کن.")}
+  if(!finished){finished=true;status("سرور پاسخ نداد. اینترنت را بررسی کن.")}
  },12000);
  peer.on("open",()=>{
   finished=true;clearTimeout(timeout);
@@ -185,9 +190,7 @@ function createRoom(){
  });
  peer.on("error",e=>{
   clearTimeout(timeout);
-  if(e.type==="unavailable-id"){
-   status("کد تکراری بود؛ دوباره تلاش کن.");
-  }else status("خطای ساخت اتاق: "+e.type);
+  status("خطای ساخت اتاق: "+e.type);
  });
 }
 function makePlayer(id,p,i){
@@ -243,6 +246,7 @@ function hostMessage(c,d){
   if(p&&p.alive&&validDir(p.dir,d.dir))p.dir=d.dir;
  }
  if(d.type==="back")returnToRoom();
+ if(d.type==="restart"&&game&&!game.running)startOnline();
 }
 function guestMessage(d){
  if(!d)return;
@@ -264,8 +268,7 @@ function guestMessage(d){
   screen("game");draw();
  }
  if(d.type==="state"){
-  game=d.game;gameEnd=d.end;draw();
-  updateInfo();
+  game=d.game;gameEnd=d.end;draw();updateInfo();
  }
  if(d.type==="finish"){
   game=d.game;draw();
@@ -340,6 +343,9 @@ function startOnline(){
  players.forEach((p,i)=>{
   p.team=n===3?(i===0?0:1):i%2;
   p.alive=true;p.score=0;
+  let s=[[4,4],[25,4],[4,25],[25,25]][i];
+  p.x=s[0];p.y=s[1];p.dir=i%2?"left":"right";
+  p.body=[[p.x,p.y],[p.x-1,p.y],[p.x-2,p.y]];
  });
  game={players,food:food(),running:true};
  gameEnd=Date.now()+Number($("time").value)*1000;
@@ -349,30 +355,21 @@ function startOnline(){
 }
 function botThink(bot,target){
  let choices=["up","down","left","right"].filter(d=>validDir(bot.dir,d));
- let best=choices.find(d=>{
+ let safe=choices.filter(d=>{
   let x=bot.x+(d==="right"?1:d==="left"?-1:0);
   let y=bot.y+(d==="down"?1:d==="up"?-1:0);
-  if(x<1||y<1||x>=29||y>=29)return false;
-  return !bot.body.some(b=>b[0]===x&&b[1]===y);
+  return x>0&&x<29&&y>0&&y<29&&
+   !bot.body.some(b=>b[0]===x&&b[1]===y);
  });
- if(!best)return;
- let targetDir=Math.abs(target.x-bot.x)>Math.abs(target.y-bot.y)?
+ if(!safe.length)return;
+ let preferred=Math.abs(target.x-bot.x)>Math.abs(target.y-bot.y)?
   (target.x>bot.x?"right":"left"):(target.y>bot.y?"down":"up");
- if(choices.includes(targetDir)){
-  let x=bot.x+(targetDir==="right"?1:targetDir==="left"?-1:0);
-  let y=bot.y+(targetDir==="down"?1:targetDir==="up"?-1:0);
-  if(x>0&&x<29&&y>0&&y<29&&!bot.body.some(b=>b[0]===x&&b[1]===y))best=targetDir;
- }
- bot.dir=best;
+ bot.dir=safe.includes(preferred)?preferred:safe[Math.floor(Math.random()*safe.length)];
 }
 function step(){
- let old=game.players.map(p=>[p.x,p.y]);
  game.players.forEach(p=>{
   if(!p.alive)return;
-  if(botMode&&p.id==="bot"){
-   let target=game.players.find(x=>x.id==="you");
-   if(target)botThink(p,game.food);
-  }
+  if(botMode&&p.id==="bot")botThink(p,game.food);
   if(p.dir==="up")p.y--;
   if(p.dir==="down")p.y++;
   if(p.dir==="left")p.x--;
@@ -397,7 +394,7 @@ function soloTick(){
  if(alive.length<=1||Date.now()>=gameEnd){
   game.running=false;clearInterval(timer);
   let winner=alive[0];
-  $("gameTitle").textContent=winner?"🏆 "+winner.name+" برنده شد!":"مساوی!";
+  $("gameTitle").textContent=winner?"🏆 "+winner.name+" برنده شد!":"🏆 مساوی!";
   $("gameInfo").textContent="امتیاز تو: "+game.players[0].score+" | امتیاز ربات: "+game.players[1].score;
  }
 }
@@ -431,21 +428,29 @@ function draw(){
  if(!game)return;
  ctx.fillStyle="#ffce54";
  ctx.beginPath();ctx.arc(game.food.x*s+8,game.food.y*s+8,7,0,7);ctx.fill();
- game.players.forEach((p,i)=>{
-  p.body.forEach((b,j)=>{
+ game.players.forEach(p=>{
+  p.body.forEach(b=>{
    ctx.fillStyle=p.alive?(p.team===0?"#38df9a":"#55a7ff"):"#555";
    ctx.fillRect(b[0]*s+1,b[1]*s+1,14,14);
   });
   if(p.alive){ctx.font="13px Arial";ctx.fillStyle="white";ctx.fillText(p.avatar,p.x*s,p.y*s);}
  });
 }
+function restartGame(){
+ if(botMode){startSolo();return}
+ if(host){startOnline();return}
+ let c=connections.host;
+ if(c&&c.open){
+  c.send({type:"restart"});
+  status("درخواست شروع دوباره ارسال شد");
+ }else status("اتصال به میزبان برقرار نیست");
+}
 function backToRoom(){
  if(botMode){
   clearInterval(timer);game=null;screen("home");return;
  }
- if(host){
-  returnToRoom();
- }else{
+ if(host)returnToRoom();
+ else{
   let c=connections.host;
   if(c&&c.open)c.send({type:"back"});
   status("درخواست بازگشت ارسال شد");
@@ -466,14 +471,39 @@ function removePlayer(c){
 }
 function exitRoom(){
  clearInterval(timer);
- if(host){
-  broadcast({type:"room",players:[],message:"میزبان اتاق را بست"});
- }else if(connections.host){
-  connections.host.close();
- }
+ if(host)broadcast({type:"room",players:[],message:"میزبان اتاق را بست"});
+ else if(connections.host)connections.host.close();
  closePeer();players=[];connections={};game=null;host=false;
  screen("home");status("از اتاق خارج شدی");
 }
+
+// Joystick: drag in any direction to steer
+(function(){
+ const joy=$("joystick"),stick=$("stick");
+ let active=false;
+ function reset(){
+  stick.style.left="43px";stick.style.top="43px";
+ }
+ function handle(e){
+  if(!active)return;
+  const r=joy.getBoundingClientRect();
+  let dx=e.clientX-(r.left+r.width/2);
+  let dy=e.clientY-(r.top+r.height/2);
+  const max=42,len=Math.hypot(dx,dy);
+  if(len>max){dx=dx/len*max;dy=dy/len*max;}
+  stick.style.left=(43+dx)+"px";
+  stick.style.top=(43+dy)+"px";
+  if(Math.hypot(dx,dy)<12)return;
+  move(Math.abs(dx)>Math.abs(dy)?
+   (dx>0?"right":"left"):(dy>0?"down":"up"));
+ }
+ joy.addEventListener("pointerdown",e=>{
+  active=true;joy.setPointerCapture(e.pointerId);handle(e);
+ });
+ joy.addEventListener("pointermove",handle);
+ joy.addEventListener("pointerup",()=>{active=false;reset()});
+ joy.addEventListener("pointercancel",()=>{active=false;reset()});
+})();
 </script>
 </body>
 </html>
