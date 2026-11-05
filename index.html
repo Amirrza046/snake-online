@@ -3,498 +3,361 @@
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Snake Arena</title>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
 *{box-sizing:border-box}
-body{
- margin:0;background:radial-gradient(ellipse at top,#142c43,#060b14 70%);
- color:#eefaff;font-family:Tahoma,Arial;text-align:center;min-height:100vh
-}
-header{padding:22px 8px;font-size:30px;font-weight:900;color:#42f5d2;text-shadow:0 0 20px #00e5bd}
-.panel{
- width:min(94%,520px);margin:13px auto;padding:17px;
- background:linear-gradient(145deg,#14263b,#0b1422);
- border:1px solid #28536a;border-radius:19px;
- box-shadow:0 10px 35px #0008
-}
-h3{color:#42f5d2;margin-top:8px}
-input,select,button{
- width:100%;padding:13px;margin:7px 0;border-radius:11px;
- border:1px solid #34566c;background:#081522;color:white;font-size:15px
-}
-button{
- border:0;background:linear-gradient(100deg,#087f78,#13bda0);
- font-weight:bold;cursor:pointer
-}
-button:disabled{opacity:.35}
-.secondary{background:#263e59}
+body{margin:0;background:#07111e;color:white;font-family:Tahoma;text-align:center}
+header{padding:22px;color:#40f5d0;font-size:29px;font-weight:bold}
+.panel{width:94%;max-width:520px;margin:12px auto;padding:17px;background:#122338;border:1px solid #28536a;border-radius:18px}
+h3{color:#40f5d0}
+input,select,button{width:100%;padding:13px;margin:7px 0;border-radius:10px;border:1px solid #34536a;background:#091725;color:white;font-size:15px}
+button{background:#087f78;border:0;font-weight:bold}
+button:disabled{opacity:.4}
 .hidden{display:none!important}
-.small{font-size:12px;color:#a8c1d2;line-height:1.8}
-#status{color:#ffd56c;min-height:25px;margin:10px}
-#roomCodeText{direction:ltr;color:#4af5d0;word-break:break-all;font-size:13px}
-#players{text-align:right;line-height:2.2}
-.teamA{color:#4af5d0}.teamB{color:#ff7796}
-#gameCanvas{
- display:block;width:100%;height:auto;
- background:#071522;border:2px solid #36e6c6;
- border-radius:14px;box-shadow:0 0 22px #00e5b344;
- touch-action:none
-}
-.hud{display:flex;justify-content:space-around;gap:8px;flex-wrap:wrap;margin:10px 0}
-.hud span{background:#1b3147;border-radius:10px;padding:9px}
-#controls{display:grid;grid-template-columns:65px 65px 65px;gap:7px;justify-content:center;direction:ltr;margin:15px}
-#controls button{height:57px;font-size:22px;margin:0}
+.small{font-size:12px;color:#a9c2d4;line-height:1.8}
+#players{line-height:2.1;text-align:right}
+#status{color:#ffda70;margin:10px}
+#roomCodeText{direction:ltr;color:#40f5d0;word-break:break-all}
+#gameCanvas{width:100%;height:auto;background:#081522;border:2px solid #40e8c7;border-radius:12px;touch-action:none}
+#controls{display:grid;grid-template-columns:65px 65px 65px;gap:6px;justify-content:center;direction:ltr}
+#controls button{height:55px;font-size:22px;margin:0}
 .empty{visibility:hidden}
 </style>
 </head>
 <body>
-
 <header>🐍 SNAKE ARENA</header>
 
 <section id="profile" class="panel hidden">
- <h3>ساخت پروفایل بازیکن</h3>
- <p class="small">برای اولین ورود، اطلاعات بازیکنت را ثبت کن.</p>
- <input id="profileName" maxlength="16" placeholder="نام بازیکن">
- <select id="profileGender">
-  <option value="">انتخاب جنسیت</option>
-  <option value="پسر">پسر</option>
-  <option value="دختر">دختر</option>
-  <option value="بدون اعلام">ترجیح می‌دهم نگویم</option>
- </select>
- <button onclick="saveProfile()">ذخیره پروفایل</button>
+<h3>پروفایل بازیکن</h3>
+<input id="name" maxlength="16" placeholder="نام بازیکن">
+<select id="gender">
+<option value="">جنسیت</option>
+<option>پسر</option><option>دختر</option><option>بدون اعلام</option>
+</select>
+<button onclick="saveProfile()">ذخیره پروفایل</button>
 </section>
 
 <section id="lobby" class="panel hidden">
- <h3>خوش آمدی <span id="welcome"></span> 👋</h3>
- <button onclick="createRoom()">ساخت اتاق بازی</button>
- <hr style="border-color:#29445a">
- <input id="roomInput" placeholder="کد اتاق دوستت">
- <button class="secondary" onclick="joinRoom()">ورود به اتاق</button>
- <button class="secondary" onclick="editProfile()">ویرایش پروفایل</button>
+<h3>سلام <span id="welcome"></span> 👋</h3>
+<button onclick="createRoom()">ساخت اتاق جدید</button>
+<input id="roomInput" placeholder="کد اتاق">
+<button onclick="joinRoom()">پیوستن به اتاق</button>
+<button onclick="editProfile()">ویرایش پروفایل</button>
 </section>
 
 <section id="roomPanel" class="panel hidden">
- <h3>🏟️ اتاق بازی</h3>
- <div>کد اتاق</div>
- <div id="roomCodeText"></div>
- <button class="secondary" onclick="copyInvite()">کپی لینک دعوت</button>
- <div class="small" id="inviteText"></div>
+<h3>🏟️ اتاق بازی</h3>
+<div>کد یکتای اتاق:</div>
+<div id="roomCodeText"></div>
+<button onclick="copyInvite()">کپی لینک دعوت</button>
+<div class="small" id="inviteText"></div>
 
- <div id="hostSettings" class="hidden">
-  <h3>تنظیمات صاحب اتاق</h3>
-  <label>حالت مسابقه</label>
-  <select id="mode" onchange="changeMode()">
-   <option value="1-1">۱ در برابر ۱</option>
-   <option value="1-2">۱ در برابر ۲</option>
-   <option value="2-2">۲ در برابر ۲</option>
-  </select>
-  <label>زمان مسابقه</label>
-  <select id="duration" onchange="changeMode()">
-   <option value="1">۱ دقیقه</option>
-   <option value="3">۳ دقیقه</option>
-   <option value="5" selected>۵ دقیقه</option>
-   <option value="10">۱۰ دقیقه</option>
-  </select>
- </div>
+<div id="hostSettings" class="hidden">
+<h3>تنظیمات صاحب اتاق</h3>
+<select id="mode" onchange="changeSettings()">
+<option value="1-1">۱ به ۱</option>
+<option value="1-2">۱ به ۲</option>
+<option value="2-2">۲ به ۲</option>
+</select>
+<select id="duration" onchange="changeSettings()">
+<option value="1">۱ دقیقه</option>
+<option value="3">۳ دقیقه</option>
+<option value="5" selected>۵ دقیقه</option>
+<option value="10">۱۰ دقیقه</option>
+</select>
+</div>
 
- <h3>بازیکنان اتاق</h3>
- <div id="players"></div>
- <div id="status">در انتظار بازیکنان...</div>
- <button id="startButton" class="hidden" onclick="startGame()">شروع مسابقه</button>
- <button class="danger" onclick="leaveRoom()">خروج از اتاق</button>
+<h3>بازیکنان</h3>
+<div id="players"></div>
+<div id="status">در انتظار بازیکنان...</div>
+<button id="start" class="hidden" onclick="startGame()">شروع مسابقه</button>
+<button onclick="leaveRoom()">خروج از اتاق</button>
 </section>
 
 <section id="gamePanel" class="panel hidden">
- <h3>⚔️ مسابقه Snake Arena</h3>
- <div class="hud">
-  <span id="timer">زمان: 00:00</span>
-  <span id="scoreA" class="teamA">تیم A: 0</span>
-  <span id="scoreB" class="teamB">تیم B: 0</span>
- </div>
- <canvas id="gameCanvas" width="600" height="400"></canvas>
- <h3 id="gameMessage"></h3>
- <div id="controls">
-  <span class="empty"></span>
-  <button onclick="move(0,-1)">▲</button>
-  <span class="empty"></span>
-  <button onclick="move(-1,0)">◀</button>
-  <button onclick="move(0,1)">▼</button>
-  <button onclick="move(1,0)">▶</button>
- </div>
- <button id="returnButton" class="hidden" onclick="returnRoom()">بازگشت به اتاق</button>
+<h3>⚔️ Snake Arena</h3>
+<div id="timer">زمان: 00:00</div>
+<div id="scores"></div>
+<canvas id="gameCanvas" width="600" height="400"></canvas>
+<h3 id="message"></h3>
+<div id="controls">
+<span class="empty"></span><button onclick="move(0,-1)">▲</button><span class="empty"></span>
+<button onclick="move(-1,0)">◀</button><button onclick="move(0,1)">▼</button><button onclick="move(1,0)">▶</button>
+</div>
+<button id="back" class="hidden" onclick="backRoom()">بازگشت به اتاق</button>
 </section>
 
 <script>
 const $=id=>document.getElementById(id);
 const canvas=$("gameCanvas"),ctx=canvas.getContext("2d");
-const W=30,H=20,CELL=20;
-
+const W=30,H=20;
 let profile=null,peer=null,conn=null;
-let isHost=false,myId=null,hostId=null;
-let players=[],mode="1-1",duration=5;
-let game=null,gameTimer=null,moveTimer=null,sendTimer=null;
-let myDirection={x:1,y:0};
+let isHost=false,myId="",roomCode="",hostPeerId="";
+let players=[],mode="1-1",duration=5,game=null;
+let moveLoop=null,timeLoop=null,sendLoop=null;
+
+function show(id){$(id).classList.remove("hidden")}
+function hide(id){$(id).classList.add("hidden")}
+function status(t){$("status").textContent=t}
+function capacity(){return mode==="1-1"?2:mode==="1-2"?3:4}
+function teamIndex(i){return mode==="1-1"?(i===0?"A":"B"):mode==="1-2"?(i===0?"A":"B"):(i%2?"B":"A")}
 
 function saveProfile(){
- const name=$("profileName").value.trim();
- const gender=$("profileGender").value;
- if(!name||!gender){alert("نام و جنسیت را انتخاب کن.");return}
- profile={name,gender};
- localStorage.setItem("snakeArenaProfile",JSON.stringify(profile));
- showLobby();
+ const n=$("name").value.trim(),g=$("gender").value;
+ if(!n||!g){alert("نام و جنسیت را وارد کن.");return}
+ profile={name:n,gender:g};
+ localStorage.setItem("snakeProfile",JSON.stringify(profile));
+ openLobby();
 }
-function loadProfile(){
- try{profile=JSON.parse(localStorage.getItem("snakeArenaProfile"))}catch(e){}
- if(profile&&profile.name&&profile.gender)showLobby();
- else show("profile");
-}
-function showLobby(){
+function openLobby(){
  hide("profile");show("lobby");
  $("welcome").textContent=profile.name;
 }
 function editProfile(){
- $("profileName").value=profile.name;
- $("profileGender").value=profile.gender;
+ $("name").value=profile.name;$("gender").value=profile.gender;
  hide("lobby");show("profile");
 }
-function show(id){$(id).classList.remove("hidden")}
-function hide(id){$(id).classList.add("hidden")}
-function status(t){$("status").textContent=t}
-function capacity(m){return m==="1-1"?2:m==="1-2"?3:4}
-
-function teamFor(index,m){
- if(m==="1-1")return index===0?"A":"B";
- if(m==="1-2")return index===0?"A":"B";
- return index%2===0?"A":"B";
+function uniqueCode(){
+ const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+ const bytes=crypto.getRandomValues(new Uint8Array(12));
+ return Array.from(bytes,b=>chars[b%chars.length]).join("");
 }
 function inviteLink(){
  const u=new URL(location.href);
- u.searchParams.set("room",hostId);
+ u.search="";u.searchParams.set("room",roomCode);
  return u.href;
 }
 function copyInvite(){
  const link=inviteLink();
- if(navigator.clipboard){
-  navigator.clipboard.writeText(link).then(()=>status("لینک دعوت کپی شد."));
- }else prompt("لینک را کپی کن:",link);
+ if(navigator.clipboard)navigator.clipboard.writeText(link).then(()=>status("لینک کپی شد."));
+ else prompt("لینک دعوت",link);
 }
 function createRoom(){
- if(!window.Peer){alert("کتابخانه اتصال بارگذاری نشد.");return}
- resetConnection();
- isHost=true;
- show("roomPanel");hide("lobby");
- show("hostSettings");show("startButton");
+ if(!window.Peer){alert("اینترنت را بررسی کن.");return}
+ if(peer)peer.destroy();
+ isHost=true;players=[];game=null;
+ roomCode=uniqueCode();
+ hostPeerId="snakearena-"+roomCode.toLowerCase();
+ show("roomPanel");hide("lobby");show("hostSettings");show("start");
+ $("roomCodeText").textContent=roomCode;
+ $("inviteText").textContent=inviteLink();
  status("در حال ساخت اتاق...");
- peer=new Peer();
+ peer=new Peer(hostPeerId);
  peer.on("open",id=>{
-  myId=id;hostId=id;
+  myId=id;
   players=[{id,name:profile.name,gender:profile.gender,team:"A",host:true}];
-  $("roomCodeText").textContent=id;
-  $("inviteText").textContent=inviteLink();
   renderRoom();
-  status("اتاق آماده است. لینک دعوت را بفرست.");
+  status("اتاق آماده است. لینک را برای دوستانت بفرست.");
  });
  peer.on("connection",c=>{
   c.on("open",()=>{
-   c.on("data",data=>hostMessage(c,data));
+   c.on("data",d=>hostMessage(c,d));
    c.on("close",()=>{
     players=players.filter(p=>p.id!==c.peer);
     rebalance();renderRoom();
    });
   });
  });
- peer.on("error",e=>status("خطای اتصال: "+e.type));
+ peer.on("error",e=>{
+  status("ساخت اتاق ناموفق: "+e.type);
+ });
 }
 function joinRoom(){
- const code=$("roomInput").value.trim()||
-  new URLSearchParams(location.search).get("room");
+ const code=($("roomInput").value||new URLSearchParams(location.search).get("room")||"").trim().toUpperCase();
  if(!code){alert("کد اتاق را وارد کن.");return}
  if(!window.Peer){alert("اینترنت را بررسی کن.");return}
- resetConnection();
- isHost=false;hostId=code;
- hide("lobby");show("roomPanel");
- hide("hostSettings");hide("startButton");
+ if(peer)peer.destroy();
+ isHost=false;roomCode=code;hostPeerId="snakearena-"+code.toLowerCase();
+ show("roomPanel");hide("lobby");hide("hostSettings");hide("start");
  $("roomCodeText").textContent=code;
- status("در حال اتصال...");
+ status("در حال اتصال به اتاق...");
  peer=new Peer();
  peer.on("open",id=>{
   myId=id;
-  conn=peer.connect(hostId,{reliable:true});
+  conn=peer.connect(hostPeerId,{reliable:true});
   conn.on("open",()=>{
    conn.send({type:"join",name:profile.name,gender:profile.gender});
-   status("درخواست ورود ارسال شد...");
   });
   conn.on("data",guestMessage);
-  conn.on("close",()=>status("ارتباط با اتاق قطع شد."));
+  conn.on("error",()=>status("خطا در اتصال."));
+  conn.on("close",()=>status("اتصال قطع شد."));
  });
- peer.on("error",e=>status("خطای اتصال: "+e.type));
+ peer.on("error",e=>status("اتاق پیدا نشد: "+e.type));
 }
-function resetConnection(){
- if(peer){peer.destroy();peer=null}
- conn=null;players=[];game=null;
- clearInterval(moveTimer);clearInterval(gameTimer);clearInterval(sendTimer);
-}
-function sendToAll(data){
- if(!isHost||!peer)return;
- Object.values(peer.connections||{}).flat().forEach(c=>{
-  if(c.open)c.send(data);
- });
-}
-function hostMessage(c,data){
- if(!data||!data.type)return;
- if(data.type==="join"){
+function hostMessage(c,d){
+ if(!d||!d.type)return;
+ if(d.type==="join"){
   if(players.some(p=>p.id===c.peer))return;
   if(players.length>=4){
-   c.send({type:"reject",message:"ظرفیت اتاق پر است."});
-   return;
+   c.send({type:"reject",message:"ظرفیت اتاق پر است."});return;
   }
-  players.push({
-   id:c.peer,
-   name:String(data.name||"بازیکن").slice(0,16),
-   gender:String(data.gender||"بدون اعلام"),
-   team:"B",host:false
-  });
-  rebalance();renderRoom();return;
+  players.push({id:c.peer,name:String(d.name||"بازیکن").slice(0,16),gender:d.gender,team:"B",host:false});
+  rebalance();renderRoom();
+  return;
  }
- if(data.type==="direction"&&game&&!game.over){
+ if(d.type==="direction"&&game&&!game.over){
   const s=game.snakes.find(x=>x.id===c.peer);
-  if(s)setDirection(s,data.direction);
+  if(s)setDirection(s,d.dir);
  }
 }
-function guestMessage(data){
- if(!data)return;
- if(data.type==="reject"){
-  status(data.message);return;
+function guestMessage(d){
+ if(!d)return;
+ if(d.type==="reject"){status(d.message);return}
+ if(d.type==="room"){
+  players=d.players;mode=d.mode;duration=d.duration;
+  renderPlayers();status("با موفقیت وارد اتاق شدی!");
  }
- if(data.type==="room"){
-  players=data.players;mode=data.mode;duration=data.duration;
-  renderRoom();return;
+ if(d.type==="started"){
+  game=d.game;openGame();draw();
  }
- if(data.type==="started"){
-  game=data.game;openGame();renderGame();return;
- }
- if(data.type==="state"){
-  game=data.game;renderGame();return;
- }
- if(data.type==="ended"){
-  game=data.game;renderGame();
-  $("gameMessage").textContent=data.message;
-  show("returnButton");
+ if(d.type==="state"){game=d.game;draw()}
+ if(d.type==="ended"){
+  game=d.game;draw();$("message").textContent=d.message;show("back");
  }
 }
 function rebalance(){
- players.forEach((p,i)=>p.team=teamFor(i,mode));
+ players.forEach((p,i)=>p.team=teamIndex(i));
 }
-function changeMode(){
+function changeSettings(){
  if(!isHost||game)return;
- mode=$("mode").value;
- duration=Number($("duration").value);
+ mode=$("mode").value;duration=Number($("duration").value);
  rebalance();renderRoom();
 }
-function renderRoom(){
- const count=players.length,needed=capacity(mode);
- const a=players.filter(p=>p.team==="A");
- const b=players.filter(p=>p.team==="B");
- let html='<b class="teamA">تیم A ('+a.length+'/'+(mode==="2-2"?2:1)+')</b><br>';
- html+=a.map(p=>escapeText(p.name)+(p.host?" 👑 صاحب اتاق":"")).join("<br>");
- html+='<br><br><b class="teamB">تیم B ('+b.length+'/'+(mode==="1-2"?2:mode==="2-2"?2:1)+')</b><br>';
- html+=b.map(p=>escapeText(p.name)+(p.host?" 👑 صاحب اتاق":"")).join("<br>");
- html+="<br><br>کل بازیکنان: "+count+"/4";
- $("players").innerHTML=html;
- if(isHost){
-  sendToAll({type:"room",players,mode,duration});
-  const ready=count===needed;
-  $("startButton").disabled=!ready;
-  status(ready?"تیم‌ها کامل هستند؛ شروع کن!":"در انتظار "+(needed-count)+" بازیکن دیگر...");
- }
+function renderPlayers(){
+ const a=players.filter(p=>p.team==="A"),b=players.filter(p=>p.team==="B");
+ const capA=mode==="2-2"?2:1,capB=mode==="1-2"?2:mode==="2-2"?2:1;
+ $("players").innerHTML=
+ '<b style="color:#40f5d0">تیم A ('+a.length+'/'+capA+')</b><br>'+
+ a.map(p=>esc(p.name)+(p.host?" 👑 صاحب اتاق":"")).join("<br>")+
+ '<br><br><b style="color:#ff7796">تیم B ('+b.length+'/'+capB+')</b><br>'+
+ b.map(p=>esc(p.name)+(p.host?" 👑 صاحب اتاق":"")).join("<br>")+
+ '<br><br>کل بازیکنان: '+players.length+'/4';
 }
-function escapeText(t){
- return String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function renderRoom(){
+ renderPlayers();
+ if(!isHost)return;
+ sendAll({type:"room",players,mode,duration});
+ const ready=players.length===capacity();
+ $("start").disabled=!ready;
+ status(ready?"تیم‌ها کامل هستند؛ شروع کن!":"در انتظار "+(capacity()-players.length)+" بازیکن دیگر...");
+}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function sendAll(d){
+ if(!isHost||!peer)return;
+ Object.values(peer.connections||{}).flat().forEach(c=>{if(c.open)c.send(d)});
 }
 function startGame(){
- if(!isHost||players.length!==capacity(mode))return;
- const snakes=players.map((p,i)=>{
-  const team=p.team;
-  const x=team==="A"?5:24;
-  const y=players.filter(q=>q.team===team).length===1?10:
-   (team==="A"?6:6)+(i%2)*8;
-  const d={x:team==="A"?1:-1,y:0};
-  return {
-   id:p.id,name:p.name,team,alive:true,score:0,
-   dir:d,nextDir:d,
-   body:[{x,y},{x:x-d.x,y},{x:x-2*d.x,y}]
-  };
- });
- game={
-  snakes,
-  food:{x:15,y:10},
-  remaining:duration*60,
-  over:false,
-  tick:0
- };
- sendToAll({type:"started",game});
- openGame();
- runHost();
+ if(!isHost||players.length!==capacity())return;
+ game={remaining:duration*60,over:false,food:{x:15,y:10},snakes:players.map((p,i)=>{
+  const team=p.team,x=team==="A"?5:24;
+  const y=players.filter(q=>q.team===team).length===1?10:6+(i%2)*8;
+  const dir={x:team==="A"?1:-1,y:0};
+  return {id:p.id,name:p.name,team,alive:true,score:0,dir,nextDir:dir,
+   body:[{x,y},{x:x-dir.x,y},{x:x-2*dir.x,y}]};
+ })};
+ sendAll({type:"started",game});openGame();runHost();
 }
 function openGame(){
- hide("roomPanel");hide("lobby");show("gamePanel");
- $("gameMessage").textContent="";
- hide("returnButton");
- renderGame();
+ hide("roomPanel");hide("lobby");show("gamePanel");hide("back");$("message").textContent="";draw();
 }
 function setDirection(s,d){
- if(!d)return;
- if(d.x===-s.dir.x&&d.y===-s.dir.y)return;
- s.nextDir={x:d.x,y:d.y};
+ if(!d||d.x===-s.dir.x&&d.y===-s.dir.y)return;
+ s.nextDir=d;
 }
 function move(x,y){
- const d={x,y};
  if(!game||game.over)return;
- if(isHost){
-  const s=game.snakes.find(s=>s.id===myId);
-  if(s)setDirection(s,d);
- }else if(conn&&conn.open){
-  conn.send({type:"direction",direction:d});
- }
+ const d={x,y};
+ if(isHost){const s=game.snakes.find(s=>s.id===myId);if(s)setDirection(s,d)}
+ else if(conn&&conn.open)conn.send({type:"direction",dir:d});
 }
 document.addEventListener("keydown",e=>{
- const map={
-  ArrowUp:[0,-1],ArrowDown:[0,1],
-  ArrowLeft:[-1,0],ArrowRight:[1,0],
-  w:[0,-1],s:[0,1],a:[-1,0],d:[1,0]
- };
- if(map[e.key]){
-  e.preventDefault();move(...map[e.key]);
- }
+ const m={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],w:[0,-1],s:[0,1],a:[-1,0],d:[1,0]};
+ if(m[e.key]){e.preventDefault();move(...m[e.key])}
 });
-function randomFood(){
+function food(){
  let p;
- do{
-  p={x:Math.floor(Math.random()*W),y:Math.floor(Math.random()*H)};
- }while(game.snakes.some(s=>s.body.some(b=>b.x===p.x&&b.y===p.y)));
+ do{p={x:Math.floor(Math.random()*W),y:Math.floor(Math.random()*H)}}
+ while(game.snakes.some(s=>s.body.some(b=>b.x===p.x&&b.y===p.y)));
  return p;
 }
 function runHost(){
- clearInterval(moveTimer);clearInterval(gameTimer);clearInterval(sendTimer);
- moveTimer=setInterval(()=>{
+ clearInterval(moveLoop);clearInterval(timeLoop);clearInterval(sendLoop);
+ moveLoop=setInterval(()=>{
   if(!game||game.over)return;
-  game.tick++;
-  const heads=[];
-  game.snakes.forEach(s=>{
-   if(!s.alive){heads.push(null);return}
-   s.dir=s.nextDir;
-   heads.push({x:s.body[0].x+s.dir.x,y:s.body[0].y+s.dir.y});
-  });
+  const heads=game.snakes.map(s=>s.alive?{x:s.body[0].x+s.nextDir.x,y:s.body[0].y+s.nextDir.y}:null);
   game.snakes.forEach((s,i)=>{
    if(!s.alive)return;
-   const h=heads[i];
-   const eating=h.x===game.food.x&&h.y===game.food.y;
+   s.dir=s.nextDir;const h=heads[i],eat=h.x===game.food.x&&h.y===game.food.y;
    const wall=h.x<0||h.x>=W||h.y<0||h.y>=H;
-   const self=s.body.slice(0,eating?s.body.length:s.body.length-1)
-    .some(p=>p.x===h.x&&p.y===h.y);
-   const other=game.snakes.some((o,j)=>
-    o.body.slice(0,(j===i&&!eating)?o.body.length-1:o.body.length)
-     .some(p=>p.x===h.x&&p.y===h.y)
-   );
-   const headCrash=heads.some((otherHead,j)=>j!==i&&otherHead&&
-    otherHead.x===h.x&&otherHead.y===h.y);
-   if(wall||self||other||headCrash){s.alive=false;return}
+   const self=s.body.slice(0,eat?s.body.length:s.body.length-1).some(p=>p.x===h.x&&p.y===h.y);
+   const other=game.snakes.some((o,j)=>o.body.slice(0,j===i&&!eat?o.body.length-1:o.body.length).some(p=>p.x===h.x&&p.y===h.y));
+   const sameHead=heads.some((v,j)=>j!==i&&v&&v.x===h.x&&v.y===h.y);
+   if(wall||self||other||sameHead){s.alive=false;return}
    s.body.unshift(h);
-   if(eating){s.score++;game.food=randomFood()}
-   else s.body.pop();
+   if(eat){s.score++;game.food=food()}else s.body.pop();
   });
-  const a=game.snakes.filter(s=>s.team==="A"&&s.alive).length;
-  const b=game.snakes.filter(s=>s.team==="B"&&s.alive).length;
-  if(a===0||b===0)finish(a===0?"تیم B برنده شد!":"تیم A برنده شد!");
+  const a=game.snakes.some(s=>s.team==="A"&&s.alive),b=game.snakes.some(s=>s.team==="B"&&s.alive);
+  if(!a||!b)finish(a?"تیم A برنده شد!":"تیم B برنده شد!");
  },130);
- gameTimer=setInterval(()=>{
+ timeLoop=setInterval(()=>{
   if(!game||game.over)return;
   game.remaining--;
   if(game.remaining<=0){
    const a=game.snakes.filter(s=>s.team==="A").reduce((n,s)=>n+s.score,0);
    const b=game.snakes.filter(s=>s.team==="B").reduce((n,s)=>n+s.score,0);
-   finish(a===b?"مسابقه مساوی شد!":a>b?"تیم A برنده شد!":"تیم B برنده شد!");
+   finish(a===b?"مساوی شد!":a>b?"تیم A برنده شد!":"تیم B برنده شد!");
   }
  },1000);
- sendTimer=setInterval(()=>{
-  if(game&&!game.over)sendToAll({type:"state",game});
-  renderGame();
- },80);
+ sendLoop=setInterval(()=>{if(game&&!game.over)sendAll({type:"state",game});draw()},80);
 }
-function finish(message){
+function finish(msg){
  if(!game||game.over)return;
  game.over=true;
- clearInterval(moveTimer);clearInterval(gameTimer);clearInterval(sendTimer);
- $("gameMessage").textContent=message;
- show("returnButton");
- sendToAll({type:"ended",game,message});
- renderGame();
+ clearInterval(moveLoop);clearInterval(timeLoop);clearInterval(sendLoop);
+ $("message").textContent=msg;show("back");
+ sendAll({type:"ended",game,message:msg});draw();
 }
-function renderGame(){
+function draw(){
  if(!game)return;
- ctx.clearRect(0,0,600,400);
- ctx.fillStyle="#071522";ctx.fillRect(0,0,600,400);
- ctx.strokeStyle="#142b40";ctx.lineWidth=.7;
- for(let x=0;x<=600;x+=20){
-  ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,400);ctx.stroke();
- }
- for(let y=0;y<=400;y+=20){
-  ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(600,y);ctx.stroke();
- }
- // غذا
- const f=game.food;
- ctx.shadowBlur=18;ctx.shadowColor="#ffdc51";
- ctx.fillStyle="#ffdc51";
- ctx.beginPath();ctx.arc(f.x*20+10,f.y*20+10,8,0,Math.PI*2);ctx.fill();
- ctx.shadowBlur=0;
- // مارها
- game.snakes.forEach(s=>{
-  s.body.forEach((p,i)=>{
-   ctx.globalAlpha=s.alive?1:.22;
-   ctx.shadowBlur=i===0?13:4;
-   ctx.shadowColor=s.team==="A"?"#35f5d1":"#ff6486";
-   ctx.fillStyle=s.team==="A"?"#24d9b7":"#f45178";
-   const r=i===0?7:5;
-   ctx.beginPath();
-   ctx.roundRect(p.x*20+2,p.y*20+2,16,16,r);
-   ctx.fill();
-   if(i===0&&s.alive){
-    ctx.shadowBlur=0;ctx.fillStyle="#fff";
-    ctx.fillRect(p.x*20+6,p.y*20+6,3,3);
-    ctx.fillRect(p.x*20+12,p.y*20+6,3,3);
-   }
-  });
- });
+ ctx.fillStyle="#081522";ctx.fillRect(0,0,600,400);
+ ctx.strokeStyle="#142b40";
+ for(let x=0;x<=600;x+=20){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,400);ctx.stroke()}
+ for(let y=0;y<=400;y+=20){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(600,y);ctx.stroke()}
+ const f=game.food;ctx.fillStyle="#ffdc51";ctx.shadowBlur=17;ctx.shadowColor="#ffdc51";
+ ctx.beginPath();ctx.arc(f.x*20+10,f.y*20+10,8,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+ game.snakes.forEach(s=>s.body.forEach((p,i)=>{
+  ctx.globalAlpha=s.alive?1:.25;ctx.fillStyle=s.team==="A"?"#27e3bd":"#fa557b";
+  ctx.shadowBlur=i===0?12:4;ctx.shadowColor=ctx.fillStyle;
+  ctx.beginPath();ctx.roundRect(p.x*20+2,p.y*20+2,16,16,6);ctx.fill();
+  if(i===0&&s.alive){ctx.shadowBlur=0;ctx.fillStyle="white";ctx.fillRect(p.x*20+6,p.y*20+6,3,3);ctx.fillRect(p.x*20+12,p.y*20+6,3,3)}
+ }));
  ctx.globalAlpha=1;ctx.shadowBlur=0;
  const a=game.snakes.filter(s=>s.team==="A").reduce((n,s)=>n+s.score,0);
  const b=game.snakes.filter(s=>s.team==="B").reduce((n,s)=>n+s.score,0);
- $("scoreA").textContent="تیم A: "+a;
- $("scoreB").textContent="تیم B: "+b;
- const sec=Math.max(0,game.remaining||0);
- $("timer").textContent="زمان: "+String(Math.floor(sec/60)).padStart(2,"0")+":"+
-  String(sec%60).padStart(2,"0");
+ $("scores").textContent="تیم A: "+a+" | تیم B: "+b;
+ const t=Math.max(0,game.remaining);
+ $("timer").textContent="زمان: "+String(Math.floor(t/60)).padStart(2,"0")+":"+String(t%60).padStart(2,"0");
 }
-function returnRoom(){
- if(!isHost){
-  alert("برای ورود دوباره، لینک دعوت را باز کن.");
-  return;
- }
- clearInterval(moveTimer);clearInterval(gameTimer);clearInterval(sendTimer);
- game=null;
- hide("gamePanel");show("roomPanel");
- renderRoom();
+function backRoom(){
+ if(!isHost){alert("برای ورود دوباره، لینک دعوت را باز کن.");return}
+ clearInterval(moveLoop);clearInterval(timeLoop);clearInterval(sendLoop);
+ game=null;hide("gamePanel");show("roomPanel");renderRoom();
 }
 function leaveRoom(){
- resetConnection();
+ clearInterval(moveLoop);clearInterval(timeLoop);clearInterval(sendLoop);
+ if(peer)peer.destroy();
+ peer=null;conn=null;players=[];game=null;
  hide("roomPanel");hide("gamePanel");show("lobby");
 }
-loadProfile();
-if(new URLSearchParams(location.search).get("room")){
- $("roomInput").value=new URLSearchParams(location.search).get("room");
+try{profile=JSON.parse(localStorage.getItem("snakeProfile"))}catch(e){}
+if(profile&&profile.name&&profile.gender)openLobby();else show("profile");
+const invite=new URLSearchParams(location.search).get("room");
+if(invite){
+ $("roomInput").value=invite;
+ if(profile)setTimeout(joinRoom,500);
 }
 </script>
 </body>
- </html>
- 
+</html>
