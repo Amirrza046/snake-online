@@ -1,163 +1,120 @@
+
 <!DOCTYPE html>
-<html lang="fa" dir="rtl">
+<html lang="fa">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Snake Online</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
-body{background:#101820;color:white;text-align:center;font-family:tahoma}
-canvas{background:#182b22;border:3px solid #38e879;max-width:95%;margin-top:15px}
-button,input{padding:12px;margin:5px;border-radius:8px;border:0}
-button{background:#38e879;font-weight:bold}
+body{background:#101820;color:white;text-align:center;font-family:Arial}
+button,input{padding:12px;margin:5px;border:0;border-radius:8px}
+button{background:#16c784;color:#07120d;font-weight:bold}
+canvas{background:#172b25;border:2px solid #16c784;max-width:95vw}
 </style>
 </head>
 <body>
 <h2>🐍 Snake Online</h2>
-<input id="room" placeholder="کد اتاق">
-<button onclick="createRoom()">ساخت اتاق</button>
-<button onclick="joinRoom()">ورود به اتاق</button>
-<p id="status">ابتدا اتاق بساز یا وارد شو</p>
-<canvas id="game" width="480" height="360"></canvas>
-<div>
-<button onclick="move('up')">⬆️</button><br>
-<button onclick="move('right')">➡️</button>
-<button onclick="move('down')">⬇️</button>
-<button onclick="move('left')">⬅️</button>
-</div>
-
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
-
+<button onclick="host()">ساخت اتاق</button>
+<br>
+<input id="room" placeholder="کد اتاق دوستت">
+<button onclick="join()">ورود به اتاق</button>
+<p id="status">منتظر اتصال...</p>
+<canvas id="game" width="400" height="400"></canvas>
+<p>حرکت: کلیدهای جهت‌دار یا WASD</p>
 <script>
-// تنظیمات Firebase را بعداً اینجا قرار می‌دهیم
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  databaseURL: "YOUR_DATABASE_URL",
-  projectId: "YOUR_PROJECT_ID",
-  appId: "YOUR_APP_ID"
-};
-
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.database();
-
-const canvas=document.getElementById("game");
-const ctx=canvas.getContext("2d");
+const c=document.getElementById("game"),ctx=c.getContext("2d");
+const status=document.getElementById("status");
 const size=20;
-let uid, roomCode, player, gameData={}, direction="right", timer;
+let peer,conn,hostMode=false,started=false;
+let snakes=[],food={x:10,y:10},dirs=[[1,0],[-1,0]],score=[0,0];
+let myDir=[1,0],guestDir=[-1,0],timer;
 
-auth.signInAnonymously().then(user=>{
-  uid=user.user.uid;
-}).catch(()=>status("خطا در اتصال Firebase"));
-
-function status(t){
- document.getElementById("status").innerText=t;
-}
-
-function createRoom(){
- if(!uid)return status("لطفاً صبر کن...");
- roomCode=Math.random().toString(36).substring(2,7).toUpperCase();
- player="p1";
- const start={
-  players:{
-   p1:{snake:[{x:5,y:8},{x:4,y:8},{x:3,y:8}],dir:"right"},
-   p2:null
-  },
-  food:{x:15,y:8}
- };
- db.ref("rooms/"+roomCode).set(start).then(()=>{
-  document.getElementById("room").value=roomCode;
-  startGame();
+function say(t){status.textContent=t}
+function host(){
+ if(peer)return;
+ hostMode=true;
+ peer=new Peer();
+ peer.on("open",id=>{
+  document.getElementById("room").value=id;
+  say("کد اتاق: "+id+" | این کد را برای دوستت بفرست");
  });
-}
-
-function joinRoom(){
- if(!uid)return status("لطفاً صبر کن...");
- roomCode=document.getElementById("room").value.trim().toUpperCase();
- if(!roomCode)return status("کد اتاق را وارد کن");
- const ref=db.ref("rooms/"+roomCode);
- ref.once("value").then(s=>{
-  if(!s.exists())return status("اتاق پیدا نشد");
-  const data=s.val();
-  if(data.players.p2)return status("اتاق پر است");
-  player="p2";
-  return ref.child("players/p2").set({
-   snake:[{x:18,y:10},{x:19,y:10},{x:20,y:10}],
-   dir:"left"
-  }).then(startGame);
+ peer.on("connection",connection=>{
+  conn=connection;
+  conn.on("open",()=>{
+   say("دوستت وصل شد! بازی شروع شد");
+   start();
+  });
+  conn.on("data",d=>{
+   if(d.type==="dir")guestDir=d.dir;
+  });
  });
+ peer.on("error",e=>say("خطا در اتصال: "+e.type));
 }
-
-function startGame(){
- status("اتاق: "+roomCode+" | بازیکن: "+player);
- db.ref("rooms/"+roomCode).on("value",s=>{
-  if(s.exists()){
-   gameData=s.val();
-   draw();
+function join(){
+ const id=document.getElementById("room").value.trim();
+ if(!id)return say("کد اتاق را وارد کن");
+ peer=new Peer();
+ peer.on("open",()=>{
+  conn=peer.connect(id);
+  conn.on("open",()=>{
+   say("وصل شدی! بازی شروع شد");
+   start();
+  });
+  conn.on("data",d=>{if(d.type==="state")draw(d)});
+ });
+ peer.on("error",e=>say("اتصال ناموفق: "+e.type));
+}
+function start(){
+ if(started)return;
+ started=true;
+ snakes=[
+  [{x:4,y:10},{x:3,y:10},{x:2,y:10}],
+  [{x:15,y:10},{x:16,y:10},{x:17,y:10}]
+ ];
+ food={x:10,y:10};score=[0,0];
+ if(hostMode)timer=setInterval(step,140);
+}
+function step(){
+ dirs=[myDir,guestDir];
+ for(let i=0;i<2;i++){
+  const head={x:snakes[i][0].x+dirs[i][0],y:snakes[i][0].y+dirs[i][1]};
+  if(head.x<0||head.x>=20||head.y<0||head.y>=20||
+     snakes[i].some(p=>p.x===head.x&&p.y===head.y)){
+   clearInterval(timer);started=false;
+   say("بازیکن "+(i+1)+" باخت! برای بازی دوباره صفحه را تازه کن.");
+   return;
   }
+  snakes[i].unshift(head);
+  if(head.x===food.x&&head.y===food.y){
+   score[i]++;
+   food={x:Math.floor(Math.random()*20),y:Math.floor(Math.random()*20)};
+  }else snakes[i].pop();
+ }
+ const data={type:"state",snakes,food,score};
+ draw(data);
+ if(conn&&conn.open)conn.send(data);
+}
+function draw(d){
+ ctx.clearRect(0,0,400,400);
+ ctx.fillStyle="#ffcc33";
+ ctx.fillRect(d.food.x*20,d.food.y*20,18,18);
+ const colors=["#16c784","#39a9ff"];
+ d.snakes.forEach((s,i)=>{
+  ctx.fillStyle=colors[i];
+  s.forEach(p=>ctx.fillRect(p.x*20,p.y*20,18,18));
  });
- clearInterval(timer);
- timer=setInterval(tick,170);
+ status.textContent="بازیکن ۱: "+d.score[0]+" | بازیکن ۲: "+d.score[1];
 }
-
-function move(d){
- const opposite={up:"down",down:"up",left:"right",right:"left"};
- if(opposite[d]===direction)return;
- direction=d;
- if(roomCode && player){
-  db.ref(`rooms/${roomCode}/players/${player}/dir`).set(d);
- }
-}
-
 document.addEventListener("keydown",e=>{
- const keys={ArrowUp:"up",ArrowDown:"down",ArrowLeft:"left",ArrowRight:"right"};
- if(keys[e.key])move(keys[e.key]);
+ const keys={ArrowUp:[0,-1],w:[0,-1],ArrowDown:[0,1],s:[0,1],ArrowLeft:[-1,0],a:[-1,0],ArrowRight:[1,0],d:[1,0]};
+ const d=keys[e.key];
+ if(!d)return;
+ e.preventDefault();
+ if(hostMode)myDir=d;
+ else guestDir=d;
+ if(conn&&conn.open)conn.send({type:"dir",dir:d});
 });
-
-function tick(){
- if(!roomCode||!player||!gameData.players)return;
- const me=gameData.players[player];
- if(!me||!me.snake)return;
- const dirs={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]};
- const d=dirs[direction];
- const head={x:me.snake[0].x+d[0],y:me.snake[0].y+d[1]};
- if(head.x<0||head.x>=24||head.y<0||head.y>=18||
-    me.snake.some(p=>p.x===head.x&&p.y===head.y)){
-  status("باختی! صفحه را تازه کن و دوباره وارد شو.");
-  clearInterval(timer);
-  return;
- }
- let snake=[head,...me.snake];
- const food=gameData.food;
- if(head.x===food.x&&head.y===food.y){
-  db.ref("rooms/"+roomCode+"/food").set({
-   x:Math.floor(Math.random()*24),
-   y:Math.floor(Math.random()*18)
-  });
- }else snake.pop();
-
- db.ref(`rooms/${roomCode}/players/${player}/snake`).set(snake);
-}
-
-function draw(){
- ctx.clearRect(0,0,480,360);
- if(!gameData.players)return;
- for(const id of ["p1","p2"]){
-  const p=gameData.players[id];
-  if(!p||!p.snake)continue;
-  ctx.fillStyle=id==="p1"?"#38e879":"#ff5252";
-  p.snake.forEach((part,i)=>{
-   ctx.fillRect(part.x*size,part.y*size,size-2,size-2);
-  });
- }
- if(gameData.food){
-  ctx.fillStyle="yellow";
-  ctx.fillRect(gameData.food.x*size,gameData.food.y*size,size-2,size-2);
- }
-}
 </script>
 </body>
 </html>
-
