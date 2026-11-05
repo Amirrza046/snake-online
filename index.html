@@ -8,7 +8,7 @@
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#101522;color:white;font-family:Tahoma,Arial;text-align:center}
+body{margin:0;background:#101522;color:#fff;font-family:Tahoma,Arial;text-align:center}
 header{padding:18px;background:#19243a;border-bottom:2px solid #35c98b}
 h1{margin:0;color:#55e6a5}
 main{max-width:650px;margin:auto;padding:12px}
@@ -20,7 +20,7 @@ button{background:#35c98b;color:#071b17;font-weight:bold}
 input,select{background:#0e1728;color:white;border:1px solid #44536b}
 input{max-width:280px;width:85%}
 .hidden{display:none!important}
-.row{display:flex;justify-content:center;align-items:center;flex-wrap:wrap}
+.row{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:6px}
 #game{width:min(94vw,520px);height:min(94vw,520px);background:#080e18;border:3px solid #3c5270;border-radius:12px;touch-action:none}
 .players{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 .player{background:#101a2b;padding:10px;border-radius:10px}
@@ -28,19 +28,20 @@ input{max-width:280px;width:85%}
 .controls button{height:55px;font-size:22px;margin:0}
 #status{color:#ffd36b;min-height:25px}
 #result{color:#55e6a5;font-size:20px}
+#scoreboard{line-height:2;font-size:14px}
 </style>
 </head>
 <body>
 <header>
 <h1>🐍 SNAKE ARENA</h1>
-<small>Play • Compete • Survive</small>
+<small>PLAY • COMPETE • SURVIVE</small>
 </header>
 <main>
 
 <section id="profile" class="panel">
 <h3>ساخت پروفایل</h3>
 <input id="nameInput" maxlength="16" placeholder="اسم بازیکن">
-<p>آواتار</p>
+<p>آواتار خودت را انتخاب کن</p>
 <select id="avatarInput">
 <option>🐍</option><option>😎</option><option>🔥</option>
 <option>🐲</option><option>👑</option><option>⚡</option>
@@ -65,7 +66,7 @@ input{max-width:280px;width:85%}
 <h3>🏠 اتاق بازی</h3>
 <p>کد اتاق: <b id="roomCode"></b></p>
 <button class="secondary" onclick="copyInvite()">کپی لینک دعوت 🔗</button>
-<p id="roomStatus">در انتظار بازیکنان...</p>
+<p id="roomStatus"></p>
 <div id="players" class="players"></div>
 <div id="hostSettings">
 <p>حالت مسابقه</p>
@@ -102,7 +103,6 @@ input{max-width:280px;width:85%}
 <button onclick="restartGame()">🔄 شروع مجدد</button>
 <button class="secondary" onclick="backToLobby()">بازگشت به اتاق</button>
 </section>
-
 <p id="status"></p>
 </main>
 
@@ -143,11 +143,15 @@ if(inviteRoom){$("joinCode").value=inviteRoom;joinRoom()}
 }
 function addPoints(n){
 total+=n;
-if(n>best)best=n;
 localStorage.setItem("sa_points",total);
-localStorage.setItem("sa_best",best);
 $("totalPoints").textContent=total;
+}
+function updateBest(n){
+if(n>best){
+best=n;
+localStorage.setItem("sa_best",best);
 $("bestPoints").textContent=best;
+}
 }
 function code(){
 const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -155,9 +159,7 @@ let s="";
 for(let i=0;i<7;i++)s+=chars[Math.floor(Math.random()*chars.length)];
 return s;
 }
-function food(){
-return{x:Math.floor(Math.random()*N),y:Math.floor(Math.random()*N)};
-}
+function food(){return{x:Math.floor(Math.random()*N),y:Math.floor(Math.random()*N)}}
 function makePlayer(id,name,avatar,team,x,y,bot=false){
 return{id,name,avatar,team,x,y,dir:"right",
 body:[{x,y},{x:x-1,y},{x:x-2,y}],
@@ -275,10 +277,8 @@ if(!host)return;
 mode=$("mode").value;duration=Number($("duration").value);
 if(players.length!==capacity(mode))
 return status("برای این حالت باید "+capacity(mode)+" بازیکن حاضر باشند.");
-let a=0,b=0;
 players.forEach((p,i)=>{
-if(mode==="2v2"){p.team=i%2?"B":"A"}
-else p.team=i===0?"A":"B";
+p.team=mode==="2v2"?(i%2?"B":"A"):(i===0?"A":"B");
 let x=4+(i*5)%18,y=5+(i*7)%17;
 p.body=[{x,y},{x:x-1,y},{x:x-2,y}];
 p.x=x;p.y=y;p.dir="right";p.alive=true;p.score=0;
@@ -297,7 +297,12 @@ tick=setInterval(step,160);
 clock=setInterval(()=>{
 if(!game?.running)return;
 secondsLeft--;
-players.forEach(p=>{if(p.alive){p.score+=1;if(p.id===myId)addPoints(1)}});
+players.forEach(p=>{
+if(p.alive){
+p.score+=1;
+if(p.id===myId){addPoints(1);updateBest(p.score)}
+}
+});
 if(secondsLeft<=0)finishGame();
 draw();renderScores();
 },1000);
@@ -338,7 +343,7 @@ p.body.unshift(head);
 let ate=head.x===game.food.x&&head.y===game.food.y;
 if(ate){
 p.score+=10;
-if(p.id===myId)addPoints(10);
+if(p.id===myId){addPoints(10);updateBest(p.score)}
 game.food=food();
 }else p.body.pop();
 p.x=head.x;p.y=head.y;
@@ -393,9 +398,7 @@ ctx.fill();
 players.forEach(p=>{
 if(!p.alive)return;
 ctx.fillStyle=p.team==="A"?"#35d99b":"#e46a78";
-p.body.forEach((b,i)=>{
-ctx.fillRect(b.x*CELL+1,b.y*CELL+1,CELL-2,CELL-2);
-});
+p.body.forEach(b=>ctx.fillRect(b.x*CELL+1,b.y*CELL+1,CELL-2,CELL-2));
 });
 }
 function restartGame(){
@@ -405,7 +408,9 @@ connections.get(roomId)?.send({type:"restart"});
 status("درخواست شروع مجدد فرستاده شد.");
 }
 function backToLobby(){
-if(myId==="solo"){clearInterval(tick);clearInterval(clock);show("home");return}
+if(myId==="solo"){
+clearInterval(tick);clearInterval(clock);show("home");return;
+}
 if(host){
 clearInterval(tick);clearInterval(clock);
 game=null;
@@ -421,20 +426,15 @@ connections.clear();
 if(peer)peer.destroy();
 peer=null;game=null;players=[];show("home");
 }
+let touchX=null,touchY=null;
 canvas.addEventListener("touchstart",e=>{
 e.preventDefault();
-let r=canvas.getBoundingClientRect();
-let x=e.touches[0].clientX-r.left;
-let y=e.touches[0].clientY-r.top;
-let dx=x-r.width/2,dy=y-r.height/2;
-move(Math.abs(dx)>Math.abs(dy)?(dx>0?"right":"left"):(dy>0?"down":"up"));
+touchX=e.touches[0].clientX;touchY=e.touches[0].clientY;
 },{passive:false});
-let touchX=null,touchY=null;
 canvas.addEventListener("touchmove",e=>{
 e.preventDefault();
-let t=e.touches[0];
-if(touchX===null){touchX=t.clientX;touchY=t.clientY;return}
-let dx=t.clientX-touchX,dy=t.clientY-touchY;
+if(touchX===null)return;
+let t=e.touches[0],dx=t.clientX-touchX,dy=t.clientY-touchY;
 if(Math.max(Math.abs(dx),Math.abs(dy))>22){
 move(Math.abs(dx)>Math.abs(dy)?(dx>0?"right":"left"):(dy>0?"down":"up"));
 touchX=t.clientX;touchY=t.clientY;
