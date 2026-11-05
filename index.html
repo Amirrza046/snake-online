@@ -7,114 +7,290 @@
 <title>Snake Online</title>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
-body{background:#101820;color:white;text-align:center;font-family:Arial}
-button,input{padding:12px;margin:5px;border:0;border-radius:8px}
-button{background:#16c784;color:#07120d;font-weight:bold}
-canvas{background:#172b25;border:2px solid #16c784;max-width:95vw}
+*{box-sizing:border-box}
+body{
+ margin:0;background:#101820;color:white;text-align:center;
+ font-family:Arial,sans-serif;padding:18px
+}
+h1{color:#16c784}
+button{
+ border:0;border-radius:12px;padding:13px 20px;
+ background:#16c784;color:#06150e;font-size:17px;
+ font-weight:bold;margin:5px;cursor:pointer
+}
+input{padding:13px;border-radius:10px;border:0;width:90%;max-width:300px}
+#gameArea{display:none}
+canvas{
+ background:#172b25;border:3px solid #16c784;
+ width:min(90vw,400px);height:auto;border-radius:8px
+}
+#controls{
+ display:grid;grid-template-columns:65px 65px 65px;
+ gap:7px;justify-content:center;margin:15px auto
+}
+#controls button{height:55px;padding:5px;font-size:23px}
+#share{display:none}
+#status{color:#b8ffd9}
 </style>
 </head>
 <body>
-<h2>🐍 Snake Online</h2>
-<button onclick="host()">ساخت اتاق</button>
-<br>
-<input id="room" placeholder="کد اتاق دوستت">
-<button onclick="join()">ورود به اتاق</button>
-<p id="status">منتظر اتصال...</p>
-<canvas id="game" width="400" height="400"></canvas>
-<p>حرکت: کلیدهای جهت‌دار یا WASD</p>
-<script>
-const c=document.getElementById("game"),ctx=c.getContext("2d");
-const status=document.getElementById("status");
-const size=20;
-let peer,conn,hostMode=false,started=false;
-let snakes=[],food={x:10,y:10},dirs=[[1,0],[-1,0]],score=[0,0];
-let myDir=[1,0],guestDir=[-1,0],timer;
 
-function say(t){status.textContent=t}
-function host(){
+<h1>🐍 SNAKE ONLINE</h1>
+
+<div id="lobby">
+ <p>برای شروع بازی دونفره:</p>
+ <button onclick="createRoom()">ساخت اتاق جدید</button>
+ <p>یا کد اتاق دوستت را وارد کن:</p>
+ <input id="roomInput" placeholder="کد اتاق">
+ <br>
+ <button onclick="joinRoom()">ورود به بازی</button>
+</div>
+
+<div id="share">
+ <p>اتاق ساخته شد! لینک را برای دوستت بفرست:</p>
+ <input id="inviteLink" readonly>
+ <br>
+ <button onclick="shareLink()">ارسال لینک دعوت</button>
+ <button onclick="copyLink()">کپی لینک</button>
+</div>
+
+<p id="status">در انتظار شروع...</p>
+
+<div id="gameArea">
+ <canvas id="game" width="400" height="400"></canvas>
+ <p id="scores"></p>
+
+ <div id="controls">
+  <span></span>
+  <button onclick="move(0,-1)">⬆️</button>
+  <span></span>
+  <button onclick="move(-1,0)">⬅️</button>
+  <button onclick="move(0,1)">⬇️</button>
+  <button onclick="move(1,0)">➡️</button>
+ </div>
+</div>
+
+<script>
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+const statusText=document.getElementById("status");
+
+let peer=null,conn=null;
+let isHost=false,started=false;
+let timer=null;
+let snakes=[];
+let food={x:10,y:10};
+let directions=[[1,0],[-1,0]];
+let scores=[0,0];
+let myPlayer=0;
+
+function status(t){statusText.textContent=t;}
+
+function createRoom(){
  if(peer)return;
- hostMode=true;
+ isHost=true;
+ myPlayer=0;
+ status("در حال ساخت اتاق...");
  peer=new Peer();
+
  peer.on("open",id=>{
-  document.getElementById("room").value=id;
-  say("کد اتاق: "+id+" | این کد را برای دوستت بفرست");
+  const link=location.origin+location.pathname+"?room="+encodeURIComponent(id);
+  document.getElementById("inviteLink").value=link;
+  document.getElementById("share").style.display="block";
+  status("اتاق آماده است؛ منتظر دوستت هستیم...");
  });
+
  peer.on("connection",connection=>{
+  if(conn){connection.close();return;}
   conn=connection;
-  conn.on("open",()=>{
-   say("دوستت وصل شد! بازی شروع شد");
-   start();
-  });
-  conn.on("data",d=>{
-   if(d.type==="dir")guestDir=d.dir;
-  });
+  setupConnection();
  });
- peer.on("error",e=>say("خطا در اتصال: "+e.type));
+
+ peer.on("error",e=>status("خطا: "+e.type));
 }
-function join(){
- const id=document.getElementById("room").value.trim();
- if(!id)return say("کد اتاق را وارد کن");
+
+function joinRoom(){
+ const id=document.getElementById("roomInput").value.trim();
+ if(!id)return status("کد اتاق را وارد کن");
+ connectToRoom(id);
+}
+
+function connectToRoom(id){
+ if(peer)return;
+ isHost=false;
+ myPlayer=1;
+ status("در حال اتصال به دوستت...");
  peer=new Peer();
+
  peer.on("open",()=>{
-  conn=peer.connect(id);
-  conn.on("open",()=>{
-   say("وصل شدی! بازی شروع شد");
-   start();
-  });
-  conn.on("data",d=>{if(d.type==="state")draw(d)});
+  conn=peer.connect(id,{reliable:true});
+  setupConnection();
  });
- peer.on("error",e=>say("اتصال ناموفق: "+e.type));
+
+ peer.on("error",e=>status("اتصال ناموفق: "+e.type));
 }
-function start(){
+
+function setupConnection(){
+ conn.on("open",()=>{
+  document.getElementById("lobby").style.display="none";
+  document.getElementById("share").style.display="none";
+  document.getElementById("gameArea").style.display="block";
+  status("هر دو بازیکن متصل شدید! 🐍");
+
+  if(isHost){
+   startGame();
+  }
+ });
+
+ conn.on("data",data=>{
+  if(data.type==="direction"&&!isHost){
+   return;
+  }
+  if(data.type==="move"&&isHost){
+   directions[1]=data.direction;
+  }
+  if(data.type==="state"&&!isHost){
+   draw(data);
+  }
+ });
+
+ conn.on("close",()=>status("ارتباط با دوستت قطع شد."));
+}
+
+function startGame(){
  if(started)return;
  started=true;
+
  snakes=[
   [{x:4,y:10},{x:3,y:10},{x:2,y:10}],
   [{x:15,y:10},{x:16,y:10},{x:17,y:10}]
  ];
- food={x:10,y:10};score=[0,0];
- if(hostMode)timer=setInterval(step,140);
+ directions=[[1,0],[-1,0]];
+ scores=[0,0];
+ newFood();
+
+ draw({snakes,food,scores});
+ timer=setInterval(step,150);
 }
+
+function newFood(){
+ food={
+  x:Math.floor(Math.random()*20),
+  y:Math.floor(Math.random()*20)
+ };
+}
+
 function step(){
- dirs=[myDir,guestDir];
  for(let i=0;i<2;i++){
-  const head={x:snakes[i][0].x+dirs[i][0],y:snakes[i][0].y+dirs[i][1]};
-  if(head.x<0||head.x>=20||head.y<0||head.y>=20||
-     snakes[i].some(p=>p.x===head.x&&p.y===head.y)){
-   clearInterval(timer);started=false;
-   say("بازیکن "+(i+1)+" باخت! برای بازی دوباره صفحه را تازه کن.");
+  const old=snakes[i][0];
+  const d=directions[i];
+  const head={x:old.x+d[0],y:old.y+d[1]};
+
+  if(head.x<0||head.x>=20||head.y<0||head.y>=20){
+   endGame(i);
    return;
   }
+
+  if(snakes.some(s=>s.some(p=>p.x===head.x&&p.y===head.y))){
+   endGame(i);
+   return;
+  }
+
   snakes[i].unshift(head);
+
   if(head.x===food.x&&head.y===food.y){
-   score[i]++;
-   food={x:Math.floor(Math.random()*20),y:Math.floor(Math.random()*20)};
-  }else snakes[i].pop();
+   scores[i]++;
+   newFood();
+  }else{
+   snakes[i].pop();
+  }
  }
- const data={type:"state",snakes,food,score};
- draw(data);
- if(conn&&conn.open)conn.send(data);
+
+ const state={type:"state",snakes,food,scores};
+ draw(state);
+
+ if(conn&&conn.open)conn.send(state);
 }
-function draw(d){
+
+function endGame(loser){
+ clearInterval(timer);
+ started=false;
+ status("بازیکن "+(loser+1)+" باخت! برای بازی دوباره صفحه را تازه کنید.");
+}
+
+function draw(data){
  ctx.clearRect(0,0,400,400);
+
  ctx.fillStyle="#ffcc33";
- ctx.fillRect(d.food.x*20,d.food.y*20,18,18);
+ ctx.fillRect(data.food.x*20+1,data.food.y*20+1,18,18);
+
  const colors=["#16c784","#39a9ff"];
- d.snakes.forEach((s,i)=>{
+
+ data.snakes.forEach((snake,i)=>{
   ctx.fillStyle=colors[i];
-  s.forEach(p=>ctx.fillRect(p.x*20,p.y*20,18,18));
+  snake.forEach(p=>{
+   ctx.fillRect(p.x*20+1,p.y*20+1,18,18);
+  });
  });
- status.textContent="بازیکن ۱: "+d.score[0]+" | بازیکن ۲: "+d.score[1];
+
+ document.getElementById("scores").textContent=
+  "بازیکن اول: "+data.scores[0]+" | بازیکن دوم: "+data.scores[1];
 }
+
+function move(x,y){
+ const playerDirection=directions[myPlayer];
+ if(x===-playerDirection[0]&&y===-playerDirection[1])return;
+
+ const d=[x,y];
+
+ if(isHost){
+  directions[0]=d;
+ }else if(conn&&conn.open){
+  conn.send({type:"move",direction:d});
+ }
+}
+
+async function copyLink(){
+ const link=document.getElementById("inviteLink").value;
+ try{
+  await navigator.clipboard.writeText(link);
+  status("لینک کپی شد! برای دوستت بفرست ❤️");
+ }catch(e){
+  document.getElementById("inviteLink").select();
+  status("لینک را انتخاب کن و کپی بزن.");
+ }
+}
+
+async function shareLink(){
+ const link=document.getElementById("inviteLink").value;
+ if(navigator.share){
+  try{await navigator.share({title:"Snake Online",url:link});}
+  catch(e){}
+ }else{
+  copyLink();
+ }
+}
+
 document.addEventListener("keydown",e=>{
- const keys={ArrowUp:[0,-1],w:[0,-1],ArrowDown:[0,1],s:[0,1],ArrowLeft:[-1,0],a:[-1,0],ArrowRight:[1,0],d:[1,0]};
- const d=keys[e.key];
- if(!d)return;
- e.preventDefault();
- if(hostMode)myDir=d;
- else guestDir=d;
- if(conn&&conn.open)conn.send({type:"dir",dir:d});
+ const keys={
+  ArrowUp:[0,-1],w:[0,-1],
+  ArrowDown:[0,1],s:[0,1],
+  ArrowLeft:[-1,0],a:[-1,0],
+  ArrowRight:[1,0],d:[1,0]
+ };
+ if(keys[e.key]){
+  e.preventDefault();
+  move(...keys[e.key]);
+ }
 });
+
+const params=new URLSearchParams(location.search);
+const room=params.get("room");
+if(room){
+ document.getElementById("roomInput").value=room;
+ connectToRoom(room);
+}
 </script>
 </body>
-</html>
+ </html>
+ 
