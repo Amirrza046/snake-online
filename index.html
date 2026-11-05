@@ -1,1 +1,163 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snake Online</title>
+<style>
+body{background:#101820;color:white;text-align:center;font-family:tahoma}
+canvas{background:#182b22;border:3px solid #38e879;max-width:95%;margin-top:15px}
+button,input{padding:12px;margin:5px;border-radius:8px;border:0}
+button{background:#38e879;font-weight:bold}
+</style>
+</head>
+<body>
+<h2>🐍 Snake Online</h2>
+<input id="room" placeholder="کد اتاق">
+<button onclick="createRoom()">ساخت اتاق</button>
+<button onclick="joinRoom()">ورود به اتاق</button>
+<p id="status">ابتدا اتاق بساز یا وارد شو</p>
+<canvas id="game" width="480" height="360"></canvas>
+<div>
+<button onclick="move('up')">⬆️</button><br>
+<button onclick="move('right')">➡️</button>
+<button onclick="move('down')">⬇️</button>
+<button onclick="move('left')">⬅️</button>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+
+<script>
+// تنظیمات Firebase را بعداً اینجا قرار می‌دهیم
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "YOUR_DATABASE_URL",
+  projectId: "YOUR_PROJECT_ID",
+  appId: "YOUR_APP_ID"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+const size=20;
+let uid, roomCode, player, gameData={}, direction="right", timer;
+
+auth.signInAnonymously().then(user=>{
+  uid=user.user.uid;
+}).catch(()=>status("خطا در اتصال Firebase"));
+
+function status(t){
+ document.getElementById("status").innerText=t;
+}
+
+function createRoom(){
+ if(!uid)return status("لطفاً صبر کن...");
+ roomCode=Math.random().toString(36).substring(2,7).toUpperCase();
+ player="p1";
+ const start={
+  players:{
+   p1:{snake:[{x:5,y:8},{x:4,y:8},{x:3,y:8}],dir:"right"},
+   p2:null
+  },
+  food:{x:15,y:8}
+ };
+ db.ref("rooms/"+roomCode).set(start).then(()=>{
+  document.getElementById("room").value=roomCode;
+  startGame();
+ });
+}
+
+function joinRoom(){
+ if(!uid)return status("لطفاً صبر کن...");
+ roomCode=document.getElementById("room").value.trim().toUpperCase();
+ if(!roomCode)return status("کد اتاق را وارد کن");
+ const ref=db.ref("rooms/"+roomCode);
+ ref.once("value").then(s=>{
+  if(!s.exists())return status("اتاق پیدا نشد");
+  const data=s.val();
+  if(data.players.p2)return status("اتاق پر است");
+  player="p2";
+  return ref.child("players/p2").set({
+   snake:[{x:18,y:10},{x:19,y:10},{x:20,y:10}],
+   dir:"left"
+  }).then(startGame);
+ });
+}
+
+function startGame(){
+ status("اتاق: "+roomCode+" | بازیکن: "+player);
+ db.ref("rooms/"+roomCode).on("value",s=>{
+  if(s.exists()){
+   gameData=s.val();
+   draw();
+  }
+ });
+ clearInterval(timer);
+ timer=setInterval(tick,170);
+}
+
+function move(d){
+ const opposite={up:"down",down:"up",left:"right",right:"left"};
+ if(opposite[d]===direction)return;
+ direction=d;
+ if(roomCode && player){
+  db.ref(`rooms/${roomCode}/players/${player}/dir`).set(d);
+ }
+}
+
+document.addEventListener("keydown",e=>{
+ const keys={ArrowUp:"up",ArrowDown:"down",ArrowLeft:"left",ArrowRight:"right"};
+ if(keys[e.key])move(keys[e.key]);
+});
+
+function tick(){
+ if(!roomCode||!player||!gameData.players)return;
+ const me=gameData.players[player];
+ if(!me||!me.snake)return;
+ const dirs={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]};
+ const d=dirs[direction];
+ const head={x:me.snake[0].x+d[0],y:me.snake[0].y+d[1]};
+ if(head.x<0||head.x>=24||head.y<0||head.y>=18||
+    me.snake.some(p=>p.x===head.x&&p.y===head.y)){
+  status("باختی! صفحه را تازه کن و دوباره وارد شو.");
+  clearInterval(timer);
+  return;
+ }
+ let snake=[head,...me.snake];
+ const food=gameData.food;
+ if(head.x===food.x&&head.y===food.y){
+  db.ref("rooms/"+roomCode+"/food").set({
+   x:Math.floor(Math.random()*24),
+   y:Math.floor(Math.random()*18)
+  });
+ }else snake.pop();
+
+ db.ref(`rooms/${roomCode}/players/${player}/snake`).set(snake);
+}
+
+function draw(){
+ ctx.clearRect(0,0,480,360);
+ if(!gameData.players)return;
+ for(const id of ["p1","p2"]){
+  const p=gameData.players[id];
+  if(!p||!p.snake)continue;
+  ctx.fillStyle=id==="p1"?"#38e879":"#ff5252";
+  p.snake.forEach((part,i)=>{
+   ctx.fillRect(part.x*size,part.y*size,size-2,size-2);
+  });
+ }
+ if(gameData.food){
+  ctx.fillStyle="yellow";
+  ctx.fillRect(gameData.food.x*size,gameData.food.y*size,size-2,size-2);
+ }
+}
+</script>
+</body>
+</html>
 
