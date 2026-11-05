@@ -8,7 +8,7 @@
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#08111f;color:white;font-family:Arial,Tahoma;overflow:hidden}
+body{margin:0;background:#08111f;color:white;font-family:Arial,Tahoma}
 button,input,select{font:inherit}
 button{border:0;border-radius:12px;padding:13px;background:#16a36a;color:white;font-weight:bold;cursor:pointer}
 button:disabled{opacity:.4}
@@ -41,6 +41,7 @@ input,select{width:100%;padding:13px;border-radius:10px;border:1px solid #40536d
 </style>
 </head>
 <body>
+
 <div id="toast"></div>
 
 <section id="home" class="screen active">
@@ -69,7 +70,7 @@ input,select{width:100%;padding:13px;border-radius:10px;border:1px solid #40536d
 
 <div class="panel">
 <h2>🏆 رکوردها</h2>
-<div id="records"></div>
+<div id="records">هنوز رکوردی ثبت نشده</div>
 </div>
 </section>
 
@@ -146,12 +147,10 @@ input,select{width:100%;padding:13px;border-radius:10px;border:1px solid #40536d
 "use strict";
 
 const $=id=>document.getElementById(id);
-const STORAGE="snakeArenaProfileV4";
+const STORAGE="snakeArenaProfileV5";
 
 let profile=null;
-try{
- profile=JSON.parse(localStorage.getItem(STORAGE)||"null");
-}catch(e){profile=null}
+try{profile=JSON.parse(localStorage.getItem(STORAGE)||"null")}catch(e){profile=null}
 
 let pendingAction="";
 let peer=null,conn=null,connections=new Map();
@@ -161,6 +160,7 @@ let lastSavedScore=0,difficulty="medium";
 let foodList=[];
 let joystickPointer=null;
 let currentAngle=0;
+let lastDirectionSent=0;
 
 const canvas=$("gameCanvas");
 const ctx=canvas.getContext("2d");
@@ -178,6 +178,7 @@ function toast(s){
 function show(id){
  document.querySelectorAll(".screen").forEach(x=>x.classList.remove("active"));
  $(id).classList.add("active");
+ if(id==="gameScreen")resizeCanvas();
 }
 
 function profileSetup(action){
@@ -205,12 +206,8 @@ function saveProfile(){
  profile.avatar=$("genderInput").value;
  profile.total=Number(profile.total)||0;
  profile.best=Number(profile.best)||0;
- try{
-  localStorage.setItem(STORAGE,JSON.stringify(profile));
- }catch(e){
-  toast("ذخیره پروفایل انجام نشد");
-  return;
- }
+ try{localStorage.setItem(STORAGE,JSON.stringify(profile))}
+ catch(e){toast("ذخیره پروفایل انجام نشد");return}
  $("profileModal").style.display="none";
  refreshProfile();
  toast("پروفایل ذخیره شد");
@@ -233,8 +230,7 @@ function refreshProfile(){
  `<div class="player"><div class="avatar">${escapeHTML(profile.avatar)}</div><b>${escapeHTML(profile.name)}</b></div>
  <div>امتیاز کل: ${profile.total||0}</div>
  <div>بهترین رکورد: ${profile.best||0}</div>`;
- $("records").textContent=
- `امتیاز کل: ${profile.total||0} | رکورد: ${profile.best||0}`;
+ $("records").textContent=`امتیاز کل: ${profile.total||0} | رکورد: ${profile.best||0}`;
 }
 
 function savePoints(value){
@@ -243,7 +239,7 @@ function savePoints(value){
  if(diff>0){
   profile.total=(profile.total||0)+diff;
   profile.best=Math.max(profile.best||0,value);
-  try{localStorage.setItem(STORAGE,JSON.stringify(profile));}catch(e){}
+  try{localStorage.setItem(STORAGE,JSON.stringify(profile))}catch(e){}
   refreshProfile();
  }
  lastSavedScore=value;
@@ -262,10 +258,10 @@ function connectPeer(id){
   peer=new Peer(id||undefined);
   let settled=false;
   peer.on("open",()=>{
-   if(!settled){settled=true;resolve();}
+   if(!settled){settled=true;resolve()}
   });
   peer.on("error",e=>{
-   if(!settled){settled=true;reject(e);}
+   if(!settled){settled=true;reject(e)}
    else toast("خطای اتصال: "+e.type);
   });
   peer.on("connection",c=>{
@@ -342,13 +338,8 @@ function hostConnection(c){
    if(p&&p.alive&&Number.isFinite(d.angle))p.angle=d.angle;
   }
 
-  if(d.type==="restart"){
-   startOnline();
-  }
-
-  if(d.type==="leave"){
-   removePlayer(c.peer);
-  }
+  if(d.type==="restart"&&isHost)startOnline();
+  if(d.type==="leave")removePlayer(c.peer);
  });
  c.on("close",()=>removePlayer(c.peer));
  c.on("error",()=>toast("خطا در اتصال بازیکن"));
@@ -366,8 +357,9 @@ function removePlayer(id){
 function broadcast(data){
  connections.forEach(c=>{
   if(c.open){
-   try{c.send(data);}catch(e){}
+   try{c.send(data)}catch(e){}
   }
+ });
 }
 
 function updateLobby(){
@@ -388,10 +380,10 @@ async function joinRoom(){
  let value=$("roomInput").value.trim();
  const match=value.match(/[?&]room=([^&]+)/);
  if(match){
-  try{value=decodeURIComponent(match[1]);}catch(e){}
+  try{value=decodeURIComponent(match[1])}catch(e){}
  }
- if(!value){toast("کد اتاق را وارد کن");return;}
- if(typeof Peer==="undefined"){toast("کتابخانه اتصال بارگذاری نشده");return;}
+ if(!value){toast("کد اتاق را وارد کن");return}
+ if(typeof Peer==="undefined"){toast("کتابخانه اتصال بارگذاری نشده");return}
  if(peer&&!peer.destroyed)peer.destroy();
  roomId=value;
  isHost=false;
@@ -437,6 +429,7 @@ function handleGuestData(d){
   show("gameScreen");
   $("gameOver").style.display="none";
   startRendering();
+  updateGameStats();
  }
  if(d.type==="state"){
   game=d.game;
@@ -453,12 +446,12 @@ function handleGuestData(d){
 }
 
 function copyInvite(){
- if(!roomId){toast("اول اتاق بساز");return;}
+ if(!roomId){toast("اول اتاق بساز");return}
  const url=location.origin+location.pathname+"?room="+encodeURIComponent(roomId);
  if(navigator.clipboard&&location.protocol==="https:"){
   navigator.clipboard.writeText(url)
-  .then(()=>toast("لینک دعوت کپی شد"))
-  .catch(()=>toast(url));
+   .then(()=>toast("لینک دعوت کپی شد"))
+   .catch(()=>toast(url));
  }else{
   toast(url);
  }
@@ -536,12 +529,14 @@ function startGame(duration){
   gameTimer=setInterval(hostTick,35);
  }
  startRendering();
+ updateGameStats();
 }
 
 function randomFood(){
  return {x:Math.random()*WORLD_W,y:Math.random()*WORLD_H};
 }
-function wrap(v,max){return (v%max+max)%max;}
+
+function wrap(v,max){return (v%max+max)%max}
 function delta(a,b,max){
  let d=a-b;
  if(d>max/2)d-=max;
@@ -575,20 +570,17 @@ function hostTick(){
   while(p.snake.length>targetLength)p.snake.pop();
 
   let hit=false;
-
   for(let i=8;i<p.snake.length;i++){
-   if(distance(head,p.snake[i])<SEGMENT*.8){hit=true;break;}
+   if(distance(head,p.snake[i])<SEGMENT*.8){hit=true;break}
   }
-
   for(const q of game.players){
    if(q===p||!q.alive)continue;
    for(const s of q.snake){
-    if(distance(head,s)<SEGMENT*.8){hit=true;break;}
+    if(distance(head,s)<SEGMENT*.8){hit=true;break}
    }
    if(hit)break;
   }
-
-  if(hit){p.alive=false;return;}
+  if(hit){p.alive=false;return}
 
   for(let i=foodList.length-1;i>=0;i--){
    if(distance(head,foodList[i])<15){
@@ -599,7 +591,6 @@ function hostTick(){
     break;
    }
   }
-
   if(game.tick%29===0)p.score++;
  });
 
@@ -702,7 +693,4 @@ function drawGame(){
   };
  }
 
- ctx.strokeStyle="#19334b";
- ctx.lineWidth=1;
- for(let x=-cw;x<cw;x+=35){
- 
+ ct
